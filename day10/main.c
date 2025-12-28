@@ -18,6 +18,7 @@ typedef int64_t i64;
 typedef uint64_t u64;
 
 #define TEST 0
+const int LIGHT_SIZE = TEST ? 12 : 12;
 char *input = TEST ? "test.txt" : "input.txt";
 
 typedef u64 light_t; // light will be used in bits
@@ -61,6 +62,18 @@ light_t parse_button(char *s)
     return result;
 }
 
+
+void print_bits(int n)
+{
+    int size = LIGHT_SIZE;
+    while(size--)
+    {
+        printf("%d", n & 1);
+        n = n >> 1;
+    }
+    printf(" ");
+}
+
 void arr_append(array_t *arr, light_t button)
 {
     arr->items[arr->cnt++]=button;
@@ -77,11 +90,11 @@ light_t arr_get(array_t *arr, int idx)
     return arr->items[idx];
 }
 
-void arr_print(array_t *arr)
+void arr_print_b(array_t *arr)
 {
     printf("[");
     for (int i =0; i < arr->cnt; i++)
-        printf("0x%zx,",arr->items[i]);
+        print_bits(arr->items[i]);
     printf("]\n");
 }
 
@@ -89,38 +102,44 @@ int presses = 0;
 
 typedef struct {
     light_t curr_light;
+    int buttons_pressed[20];
+    int button_cnt;
     int presses;
 } bfs_data_t;
 
-bfs_data_t bfs_data[1000000] = {0}; //
+#define BFS_DATA_MAX 5000000
+
+bfs_data_t bfs_data[BFS_DATA_MAX] = {0}; //
 int bfs_data_count = 0;
+
+
+void bfs_append(light_t light)
+{
+    if(bfs_data_count>BFS_DATA_MAX-1) assert(0&&"INCREASE BFS DATA SIZE!");
+    bfs_data[bfs_data_count].curr_light=light;
+    bfs_data[bfs_data_count++].presses = 0;
+}
+
+bfs_data_t next_bfs_data[BFS_DATA_MAX] = {0};
+int next_bfs_cnt = 0;
 
 void clean_bfs_data()
 {
     memset(bfs_data, 0, sizeof(bfs_data));
     bfs_data_count = 0;
+    memset(next_bfs_data, 0, sizeof(next_bfs_data));
+    next_bfs_cnt = 0;
 }
 
-void bfs_append(light_t light, int presses)
-{
-    if(bfs_data_count>999999) assert(0&&"INCREASE BFS DATA SIZE!");
-    bfs_data[bfs_data_count].curr_light=light;
-    bfs_data[bfs_data_count++].presses = presses + 1;
-}
-
-bfs_data_t next_bfs_data[1000000] = {0};
-int next_bfs_cnt = 0;
-
-bfs_data_t create_bfs_data(light_t light, int presses)
-{
-    return ((bfs_data_t){light, presses});
-}
+// bfs_data_t create_bfs_data(light_t next_light, bfs_data_t data)
+// {
+//     return ((bfs_data_t){next_light,data. ,data.presses+1});
+// }
 
 void add_to_next_bfs_data(bfs_data_t data)
 {
-    if(next_bfs_cnt>999999) assert(0&&"INCREASE BFS DATA SIZE!");
-    next_bfs_data[next_bfs_cnt].curr_light=data.curr_light;
-    next_bfs_data[next_bfs_cnt++].presses = data.presses;
+    if(next_bfs_cnt>BFS_DATA_MAX-1) assert(0&&"INCREASE BFS DATA SIZE!");
+    next_bfs_data[next_bfs_cnt++]=data;
 }
 
 void swap_next_bfs_data_to_current()
@@ -148,10 +167,23 @@ int count_bits(u64 n)
 int button_advances_to_target(light_t button, light_t curr_light)
 {
     curr_light ^=button;
-    if (count_bits(curr_light^target_light) <= count_bits(target_light)) return curr_light^target_light;
-    return 999999;
+    // if (count_bits(curr_light^target_light) <= count_bits(target_light)) return curr_light;
+    // return 999999;
+    return curr_light;
 }
 
+void print_bfs_data(bfs_data_t d)
+{
+    printf("Printing final bfs data:\n\t final light: ");
+    print_bits(d.curr_light);
+    printf("buttons pressed: ");
+    for (int i  = 0; i< d.button_cnt; i++)
+    {
+        print_bits(d.buttons_pressed[i]);
+    }
+    printf("\n");
+
+}
 
 // runs one iteration of bfs
 // all bfs data is stored in bfs_data
@@ -164,13 +196,20 @@ int run_bfs_once()
         for (int b = 0; b < buttons.cnt; b ++)
         {
             light_t button = buttons.items[b];
-            light_t next_light = button_advances_to_target(button, curr.curr_light);
+                light_t next_light = button_advances_to_target(button, curr.curr_light);
             if(next_light!=999999)
             {
-                bfs_data_t new_bfs_data = create_bfs_data(next_light, presses+1);
+                // bfs_data_t new_bfs_data = create_bfs_data(next_light, curr);
+                // create next bfs data
+                bfs_data_t new_bfs_data; 
+                memcpy(&new_bfs_data, &curr, sizeof(curr));
+                new_bfs_data.buttons_pressed[new_bfs_data.button_cnt++]=button;
+                new_bfs_data.curr_light = next_light;
+                new_bfs_data.presses++;
                 if(new_bfs_data.curr_light == target_light)
                 {
                     presses += new_bfs_data.presses;
+                    print_bfs_data(new_bfs_data);
                     return 1;
                 }
                 add_to_next_bfs_data(new_bfs_data);
@@ -189,6 +228,7 @@ int main()
     FILE *f = fopen(input, "r");
 
     char line[LINE_MAX_LEN] = {0};
+    clean_bfs_data();
 
 
     while (fgets(line, sizeof(line), f))
@@ -213,15 +253,19 @@ int main()
 
         } while ((tok = strtok(NULL, " ")) != NULL);
 
-        printf("Target light: 0x%zx\n\t", target_light);
-        arr_print(&buttons);
+        printf("Target light: ");
+        print_bits(target_light);
+        printf("\n\t");
+        arr_print_b(&buttons);
         printf("\n");
 
         // now, we do the BFS process until it finds a solution!
-        bfs_append((light_t)0,0);
+        bfs_append((light_t)0);
         while(run_bfs_once() == 0);
 
         printf("Presses needed: %d\n", presses);
+        clean_bfs_data();
+
 
     }
 
