@@ -16,7 +16,7 @@
 typedef int64_t i64;
 typedef uint64_t u64;
 
-#define TEST 1
+#define TEST 0
 char *input = TEST ? "test.txt" : "input.txt";
 
 #define printf if(TEST) printf
@@ -36,7 +36,10 @@ typedef struct {
     name_t name;
     name_t outputs[DEVICE_MAX_OUTPUTS];
     int    out_cnt;
-    int path_cnt;
+    i64    path_cnt; // default if dac or fft not seen yet
+    i64    path_cnt_dac; // if dac was seen already 
+    i64    path_cnt_fft;  // if fft was seen already
+    i64    path_cnt_dac_fft; // if dac and fft were seen
 } device_t;
 
 // there are only 26*26*26 possible device names
@@ -95,7 +98,7 @@ void print_name(name_t name)
 }
 
 // input is dfs_data
-int run_dfs(name_t name, int crossed_fft, int crossed_dac)
+i64 run_dfs(name_t name, int crossed_fft, int crossed_dac)
 {
     device_t *curr = &list.devices[name];
 
@@ -108,36 +111,47 @@ int run_dfs(name_t name, int crossed_fft, int crossed_dac)
     printf("%s->", idx_to_name(name).s);
 
     if (name == OUT_IDX) {
-      if (crossed_dac && crossed_fft) {
-        curr->path_cnt = 1;
-        printf("\n\t");
-        return 1;
-      } else {
-        
-        printf("\n\t");
-        return 0;
-      }
-    } // finished
+        return (crossed_dac && crossed_fft ? 1 : 0);
+    } 
 
-    if (curr->path_cnt != 0) {
-        printf("\t");
-        return curr->path_cnt > 0 ? curr->path_cnt : 0;
-    } // already accounted for
+    if(curr->path_cnt >= 0 && !crossed_dac && !crossed_fft)
+    {
+        return curr->path_cnt;
+    }
+    else if (curr->path_cnt_dac >= 0 && crossed_dac && !crossed_fft) {
+        return  curr->path_cnt_dac;
+    }
+    else if (curr->path_cnt_fft >= 0 && !crossed_dac && crossed_fft) {
+        return  curr->path_cnt_fft;
+    }
+    else if (curr->path_cnt_dac_fft >= 0 && crossed_dac && crossed_fft) {
+        return  curr->path_cnt_dac_fft;
+    }
 
     // run dfs on all outputs, return the sum of paths
-    int sum = 0;
+    i64 sum = 0;
     for (int i  = 0 ; i < curr->out_cnt ; i++)
     {
         sum += run_dfs(curr->outputs[i], crossed_fft, crossed_dac);
     }
 
-    if (sum <= 0)
-      curr->path_cnt = -1;
-    else
+    
+    if (!crossed_dac && !crossed_fft)
+    {
       curr->path_cnt = sum;
+    }
+    else if (crossed_dac && !crossed_fft) {
+      curr->path_cnt_dac = sum;
+    }
+    else if (!crossed_dac && crossed_fft) {
+      curr->path_cnt_fft = sum;
+    }
+    else if (crossed_dac && crossed_fft) {
+      curr->path_cnt_dac_fft = sum;
+    }
 
-    if (sum!=0) printf("returning sum: name %s, path_cnt %d\n", idx_to_name(name).s, curr->path_cnt);
-    return sum;
+    if (sum!=0) printf("returning sum: name %s, sum %lld\n", idx_to_name(name).s, sum);
+    return  sum; 
 }
 
 
@@ -155,6 +169,11 @@ int main()
     {
         int device_processed = 0;
         device_t new_device = {0}; 
+        new_device.path_cnt = -1;
+        new_device.path_cnt_dac = -1;
+        new_device.path_cnt_dac_fft = -1;
+        new_device.path_cnt_fft = -1;
+
         char* tok = strtok(line, " :");
         do{
             // process line
@@ -179,7 +198,7 @@ int main()
     }
 
 #undef printf
-    printf("\nresult: %d\n", run_dfs(SVR_IDX, 0, 0));
+    printf("\nresult: %lld\n", run_dfs(SVR_IDX, 0, 0)); // 226951938 too low
 
     return 0;
 }
