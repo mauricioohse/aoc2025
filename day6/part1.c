@@ -15,32 +15,22 @@
 typedef int64_t i64;
 typedef uint64_t u64;
 
-typedef struct {
+struct {
     i64 nums[5][3000];
     i64 r_cnt;
     i64 c_cnt;
-} Data; Data n = {0};
+} n = {0};
 
 struct {
     char ops[3000];
     i64 cnt;
 } o;
 
-i64 get_nth_digit(i64 num, int nth)
-{
-    char s[10];
-    if (num < pow(10,nth)) return 0;
-    snprintf(s,10,"%lld", num);
-    int len = strlen(s);
-    int result = *(s+len-nth-1)-'0';
-    // printf("\nget_nth_digit(%lld, %d) called, result: %d\n", num, nth, result);
-    return result;
-}
 
 int main()
 {
 
-    FILE *f = fopen("test.txt", "r");
+    FILE *f = fopen("input.txt", "r");
 
     char line[LINE_MAX_LEN] = {0};
     i64 max = 0;
@@ -78,29 +68,6 @@ int main()
     }
 
     n.c_cnt = max;
-
-    printf("processing input into new format:\n");
-    Data processed = {0};
-    processed.c_cnt = n.c_cnt;
-    processed.r_cnt = n.r_cnt;
-    for ( i64 row = 0; row < n.r_cnt; row++)
-    {
-        for (i64 col = 0; col < n.c_cnt; col++)
-        {
-          for (i64 nth = 0; nth < n.r_cnt; nth++) 
-          {
-            if(get_nth_digit(n.nums[nth][col], row)!=0)
-            processed.nums[row][col] = get_nth_digit(n.nums[nth][col], row) +
-                                       processed.nums[row][col] * 10;
-          }
-            printf("%4lld ", processed.nums[row][col]);
-        }
-        printf("\n");
-    }
-    
-    printf("\noperations results:\n");
-
-    n = processed;
 
     i64 total_result = 0;
     for (i64 ci = 0; ci < n.c_cnt; ci++)
