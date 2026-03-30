@@ -16,7 +16,7 @@ if [ ! -f "$src_file" ]; then
 fi
 
 # Compile and check if successful
-if gcc -Wall -Wextra -Werror -g -Wuninitialized -pedantic -O3 -std=gnu2x -o "$exec_file" "$src_file"; then
+if gcc -Wall -Wextra -Werror -g -Wuninitialized -pedantic -O2 -std=gnu2x -o "$exec_file" "$src_file"; then
     # Save current directory
     current_dir=$(pwd)
 
